@@ -130,7 +130,7 @@ Blockly.Variables.flyoutCategory = function(workspace) {
  */
 Blockly.Variables.flyoutCategoryBlocks = function(workspace) {
   var variableModelList = workspace.getVariablesOfType('');
-  variableModelList.sort(Blockly.VariableModel.compareByName);
+  // variableModelList.sort(Blockly.VariableModel.compareByName); // TWODEE(don't sort)
 
   var xmlList = [];
   if (variableModelList.length > 0) {

@@ -238,6 +238,21 @@ Blockly.Procedures.flyoutCategory = function(workspace) {
         mutation.appendChild(arg);
       }
       xmlList.push(block);
+
+      // TWODEE(Add an expression version.)
+      block = goog.dom.createDom('block');
+      block.setAttribute('type', templateName);
+      block.setAttribute('gap', 16);
+      var mutation = goog.dom.createDom('mutation');
+      mutation.setAttribute('name', name);
+      mutation.setAttribute('isexpression', true);
+      block.appendChild(mutation);
+      for (var j = 0; j < args.length; j++) {
+        var arg = goog.dom.createDom('arg');
+        arg.setAttribute('name', args[j]);
+        mutation.appendChild(arg);
+      }
+      xmlList.push(block);
     }
   }
 
@@ -282,6 +297,7 @@ Blockly.Procedures.mutateCallers = function(defBlock) {
   for (var i = 0, caller; caller = callers[i]; i++) {
     var oldMutationDom = caller.mutationToDom();
     var oldMutation = oldMutationDom && Blockly.Xml.domToText(oldMutationDom);
+    xmlElement.setAttribute("isexpression", oldMutationDom.getAttribute("isexpression")); // TWODEE
     caller.domToMutation(xmlElement);
     var newMutationDom = caller.mutationToDom();
     var newMutation = newMutationDom && Blockly.Xml.domToText(newMutationDom);
@@ -305,7 +321,8 @@ Blockly.Procedures.mutateCallers = function(defBlock) {
  */
 Blockly.Procedures.getDefinition = function(name, workspace) {
   // Assume that a procedure definition is a top block.
-  var blocks = workspace.getTopBlocks(false);
+  // var blocks = workspace.getTopBlocks(false);
+  var blocks = workspace.getAllBlocks(); // TWODEE
   for (var i = 0; i < blocks.length; i++) {
     if (blocks[i].getProcedureDef) {
       var tuple = blocks[i].getProcedureDef();
