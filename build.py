@@ -310,6 +310,8 @@ class Gen_compressed(threading.Thread):
     params.append(("js_code", "goog.provide('Blockly');goog.provide('Blockly.Blocks');"))
     filenames = glob.glob(os.path.join("blocks", "*.js"))
     filenames.sort()  # Deterministic build.
+    filenames.remove('blocks/madeup.js') # TWODEE(madeup has dependencies on builtins)
+    filenames.append('blocks/madeup.js')
     for filename in filenames:
       f = open(filename)
       params.append(("js_code", "".join(f.readlines())))
