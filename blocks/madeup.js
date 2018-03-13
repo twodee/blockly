@@ -828,11 +828,12 @@ var block_definitions = {
   'madeup_mirror': {
     config:
       {
-        "message0": "mirror path %1 axis %2 point %3",
+        // "message0": "mirror path %1 axis %2 point %3",
+        "message0": "mirror axis %1",
         "args0": [
-          { "type": "input_value", "align": "RIGHT", "name": "PATH", "check": ["Path"] },
+          // { "type": "input_value", "align": "RIGHT", "name": "PATH", "check": ["Path"] },
           { "type": "input_value", "align": "RIGHT", "name": "AXIS", "check": ["Array"] },
-          { "type": "input_value", "align": "RIGHT", "name": "POINT", "check": ["Array"] }
+          // { "type": "input_value", "align": "RIGHT", "name": "POINT", "check": ["Array"] }
         ],
         "inputsInline": false,
         "previousStatement": null,
@@ -843,10 +844,12 @@ var block_definitions = {
       },
     generator:
       function (block) {
-        var path = Blockly.Madeup.valueToCode(block, 'PATH', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var axis = Blockly.Madeup.valueToCode(block, 'AXIS', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var point = Blockly.Madeup.valueToCode(block, 'POINT', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'mirror ' + path + ', ' + axis + ', ' + point;
+        // var path = Blockly.Madeup.valueToCode(block, 'PATH', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
+        // var axis = Blockly.Madeup.valueToCode(block, 'AXIS', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
+        var axis = Blockly.Madeup.valueToCode(block, 'AXIS', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
+        // var point = Blockly.Madeup.valueToCode(block, 'POINT', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
+        // var code = 'mirror ' + path + ', ' + axis + ', ' + point;
+        var code = 'mirror ' + axis;
         return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
       }
   },
