@@ -63,9 +63,9 @@ function contextMenuPlusPlus(options) {
   };
   options.push(option);
 
-  if (block.hasOwnProperty('args0') && block.args0) {
-    for (var i = 0; i < block.args0.length; ++i) {
-      if (block.args0[i].hasOwnProperty('default')) {
+  if (block.madeup.hasOwnProperty('args0') && block.madeup.args0) {
+    for (var i = 0; i < block.madeup.args0.length; ++i) {
+      if (block.madeup.args0[i].hasOwnProperty('default')) {
         option = (function(arg) {
           return {
             enabled: true,
@@ -78,7 +78,7 @@ function contextMenuPlusPlus(options) {
               Blockly.Events.fire(event);
             }
           };
-        })(block.args0[i], block.message0);
+        })(block.madeup.args0[i], block.madeup.message0);
         options.push(option);
       }
     }
@@ -116,10 +116,10 @@ function mutationModeToDom(block, container) {
   var isExpression = !!block.outputConnection;
   container.setAttribute('isexpression', isExpression);
 
-  if (block.hasOwnProperty('args0') && block.args0) {
+  if (block.hasOwnProperty('madeup') && block.madeup.hasOwnProperty('args0') && block.madeup.args0) {
     var ids = [];
-    for (var i = 0; i < block.args0.length; ++i) {
-      var arg = block.args0[i];
+    for (var i = 0; i < block.madeup.args0.length; ++i) {
+      var arg = block.madeup.args0[i];
       if (arg.hasOwnProperty('default')) {
         ids.push(arg.name);
       }
@@ -144,6 +144,24 @@ function mutationToDom() {
   return container;
 }
 
+function isParameterOptional(arg) {
+  return arg.hasOwnProperty('default');
+}
+
+Blockly.Block.prototype.isCallWithNames = function() {
+  if (this.madeup.hasOwnProperty('args0') && this.madeup.args0 && this.madeup.args0.length > 1) {
+    var isPredecessorOn = this.isParameterEnabled(this.madeup.args0[0].name);
+    for (var i = 1; i < this.madeup.args0.length; ++i) {
+      var isOn = this.isParameterEnabled(this.madeup.args0[i].name);
+      if (isOn && !isPredecessorOn) {
+        return true;
+      }
+      isPredecessorOn = isOn;
+    }
+  }
+  return false;
+}
+
 Blockly.Block.prototype.isParameterEnabled = function(id) {
   return this.getInput(id) !== null && this.getInput(id).type !== Blockly.DUMMY_INPUT;
 }
@@ -152,7 +170,7 @@ Blockly.Block.prototype.enableParameter = function(formal, isEnabled) {
   this.removeInput(formal, true);
 
   var regex = new RegExp('^(?:.*%\\d+\\s+)*(.*)' + formal + '\\s+%(\\d+)');
-  var match = regex.exec(this.message0);
+  var match = regex.exec(this.madeup.message0);
   var prefix = match[1];
   var iPosition = parseInt(match[2]);
   
@@ -187,13 +205,51 @@ function domModeToMutation(element) {
   }
 }
 
+function generateCall(block) {
+  var match = block.madeup.message0.match(/^\w+/);
+  var code = match[0];
+  if (block.isCallWithNames()) {
+    for (var i = 0; i < block.madeup.args0.length; ++i) {
+      var arg = block.madeup.args0[i];
+      if (this.isParameterEnabled(arg.name)) {
+        var value = Blockly.Madeup.valueToCode(block, arg.name, Blockly.Madeup.ORDER_FUNCTION_CALL);
+        code += ' ' + arg.name + ':' + value + '';
+      }
+    }
+  } else {
+    var actuals = [];
+    for (var i = 0; i < block.madeup.args0.length; ++i) {
+      var arg = block.madeup.args0[i];
+      if (this.isParameterEnabled(arg.name)) {
+        var precedence;
+        if (i == 0 && block.madeup.args0.length == 1) {
+          precedence = Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER;
+        } else if (i == 0) {
+          precedence = Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER;
+        } else {
+          precedence = Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER;
+        }
+        var value = Blockly.Madeup.valueToCode(block, arg.name, precedence);
+        actuals.push(value);
+      }
+    }
+
+    if (actuals.length > 0) {
+      code += ' ' + actuals.join(', ');
+    }
+  }
+
+  return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
+}
+
 var block_definitions = {
   'madeup_tube': {
     config:
       {
-        "message0": "tube maxBend %1",
+        "message0": "tube maxBend %1 twist %2",
         "args0": [
           { "type": "input_value", "align": "RIGHT", "name": "maxBend", "check": ["Real", "Integer"], "default": "(INTEGER 360)" },
+          { "type": "input_value", "align": "RIGHT", "name": "twist", "check": ["Real", "Integer"], "default": "(INTEGER 45)" },
         ],
         "inputsInline": false,
         "previousStatement": null,
@@ -202,15 +258,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'tube';
-        if (block.isParameterEnabled('maxBend')) {
-          var value_maxBend = Blockly.Madeup.valueToCode(block, 'maxBend', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-          code += ' maxBend:' + value_maxBend;
-        }
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_spheres': {
     config:
@@ -222,11 +270,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'spheres';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_forget': {
     config:
@@ -238,11 +282,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'forget';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_polygon': {
     config:
@@ -257,11 +297,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/",
       },
-    generator:
-      function (block) {
-        var code = 'polygon';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_boxes': {
     config:
@@ -273,11 +309,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'boxes';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_extrude': {
     config:
@@ -296,15 +328,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_length = Blockly.Madeup.valueToCode(block, 'length', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'extrude ' + value_x + ', ' + value_y + ', ' + value_z + ', ' + value_length;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_revolve': {
     config:
@@ -323,15 +347,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_degrees = Blockly.Madeup.valueToCode(block, 'degrees', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'revolve ' + value_x + ', ' + value_y + ', ' + value_z + ', ' + value_degrees;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_unary_operator': {
     config:
@@ -398,13 +414,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_min = Blockly.Madeup.valueToCode(block, 'min', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_max = Blockly.Madeup.valueToCode(block, 'max', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'random ' + value_min + ', ' + value_max;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
-      }
+    generator: generateCall
   },
   'madeup_random01': {
     config:
@@ -415,11 +425,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'random01';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
-      }
+    generator: generateCall
   },
   'madeup_atan2': {
     config:
@@ -435,13 +441,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_opposite = Blockly.Madeup.valueToCode(block, 'opposite', Blockly.Madeup.ORDER_ATOMIC);
-        var value_adjacent = Blockly.Madeup.valueToCode(block, 'adjacent', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'atan2 ' + value_opposite + ', ' + value_adjacent;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_log': {
     config:
@@ -457,13 +457,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_base = Blockly.Madeup.valueToCode(block, 'base', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'log ' + value_base + ', ' + value_x;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
-      }
+    generator: generateCall
   },
   'madeup_if_expr': {
     config:
@@ -554,15 +548,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_degrees = Blockly.Madeup.valueToCode(block, 'degrees', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'rotate ' + value_x + ', ' + value_y + ', ' + value_z + ', ' + value_degrees;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_scale': {
     config:
@@ -580,14 +566,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'scale ' + value_x + ', ' + value_y + ', ' + value_z;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_translate': {
     config:
@@ -605,14 +584,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'translate ' + value_x + ', ' + value_y + ', ' + value_z;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_string': {
     config:
@@ -647,12 +619,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'sign ' + value_x;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
-      }
+    generator: generateCall
   },
   'madeup_abs': {
     config:
@@ -781,12 +748,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_message = Blockly.Madeup.valueToCode(block, 'message', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'print ' + value_message;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_debug': {
     config:
@@ -800,12 +762,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_message = Blockly.Madeup.valueToCode(block, 'message', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'debug ' + value_message;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_integer': {
     config:
@@ -900,12 +857,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var object = Blockly.Madeup.valueToCode(block, 'object', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'center ' + object;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_mirror': {
     config:
@@ -923,20 +875,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var axis = Blockly.Madeup.valueToCode(block, 'axis', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var code = 'mirror ' + axis;
-        if (block.isParameterEnabled('path')) {
-          var path = Blockly.Madeup.valueToCode(block, 'path', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-          code += ', ' + path;
-        }
-        if (block.isParameterEnabled('point')) {
-          var point = Blockly.Madeup.valueToCode(block, 'point', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-          code += ', ' + point;
-        }
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_look': {
     config:
@@ -952,12 +891,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_view = Blockly.Madeup.valueToCode(block, 'view', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var code = 'look ' + value_view;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_polarto': {
     config:
@@ -974,13 +908,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_radius = Blockly.Madeup.valueToCode(block, 'radius', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_angle = Blockly.Madeup.valueToCode(block, 'angle', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'polarto ' + value_radius + ', ' + value_angle;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_moveto': {
     config:
@@ -998,19 +926,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code;
-        if (!block.isParameterEnabled('z')) {
-          code = 'moveto ' + value_x + ', ' + value_y;
-        } else {
-          var value_z = Blockly.Madeup.valueToCode(block, 'z', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-          code = 'moveto ' + value_x + ', ' + value_y + ', ' + value_z;
-        }
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_moveto_xy': {
     config:
@@ -1027,13 +943,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_x = Blockly.Madeup.valueToCode(block, 'x', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_y = Blockly.Madeup.valueToCode(block, 'y', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'moveto ' + value_x + ', ' + value_y;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_move': {
     config:
@@ -1049,12 +959,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_distance = Blockly.Madeup.valueToCode(block, 'distance', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'move ' + value_distance;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_turn': {
     config:
@@ -1214,11 +1119,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'identity';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_home': {
     config:
@@ -1230,11 +1131,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'home';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_reframe': {
     config:
@@ -1246,11 +1143,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'reframe';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_push': {
     config:
@@ -1262,11 +1155,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'push';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_pop': {
     config:
@@ -1278,11 +1167,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'pop';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_reverse': {
     config:
@@ -1295,11 +1180,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'reverse';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_coalesce': {
     config:
@@ -1315,12 +1196,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_threshold = Blockly.Madeup.valueToCode(block, 'threshold', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'coalesce ' + value_threshold;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_dilate': {
     config:
@@ -1337,13 +1213,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_path = Blockly.Madeup.valueToCode(block, 'path', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_distance = Blockly.Madeup.valueToCode(block, 'distance', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'dilate ' + value_path + ', ' + value_distance;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_loft': {
     config:
@@ -1359,19 +1229,15 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_paths = Blockly.Madeup.valueToCode(block, 'paths', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'loft ' + value_paths;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_dowel': {
     config:
       {
-        "message0": "dowel maxBend %1",
+        "message0": "dowel maxBend %1 twist %2",
         "args0": [
           { "type": "input_value", "align": "RIGHT", "name": "maxBend", "check": ["Real", "Integer"], "default": "(INTEGER 360)" },
+          { "type": "input_value", "align": "RIGHT", "name": "twist", "check": ["Real", "Integer"], "default": "(INTEGER 45)" },
         ],
         "inputsInline": false,
         "previousStatement": null,
@@ -1380,15 +1246,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'dowel';
-        if (block.isParameterEnabled('maxBend')) {
-          var value_maxBend = Blockly.Madeup.valueToCode(block, 'maxBend', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-          code += ' maxBend:' + value_maxBend;
-        }
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_return': {
     config:
@@ -1404,12 +1262,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_object = Blockly.Madeup.valueToCode(block, 'value', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'return ' + value_object;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_echo': {
     config:
@@ -1425,12 +1278,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_object = Blockly.Madeup.valueToCode(block, 'object', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'echo ' + value_object;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_transform': {
     config:
@@ -1446,12 +1294,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_object = Blockly.Madeup.valueToCode(block, 'object', Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER);
-        var code = 'transform ' + value_object;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_path': {
     config:
@@ -1463,11 +1306,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'path';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_mode_add': {
     config:
@@ -1479,11 +1318,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'add';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_mode_subtract': {
     config:
@@ -1495,11 +1330,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'subtract';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_surface': {
     config:
@@ -1516,13 +1347,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var value_columns = Blockly.Madeup.valueToCode(block, 'columns', Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER);
-        var value_rows = Blockly.Madeup.valueToCode(block, 'rows', Blockly.Madeup.ORDER_FUNCTION_CALL_NOT_FIRST_PARAMETER);
-        var code = 'surface ' + value_columns + ', ' + value_rows;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_view': {
     config:
@@ -1534,11 +1359,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'view';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_where': {
     config:
@@ -1550,11 +1371,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function (block) {
-        var code = 'where';
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_repeat': {
     config: 
@@ -1811,13 +1628,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function(block) {
-        var value_a = Blockly.Madeup.valueToCode(block, 'a', Blockly.Madeup.ORDER_ATOMIC);
-        var value_b = Blockly.Madeup.valueToCode(block, 'b', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'cross ' + value_a + ', ' + value_b;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_dot': {
     config:
@@ -1833,13 +1644,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function(block) {
-        var value_a = Blockly.Madeup.valueToCode(block, 'a', Blockly.Madeup.ORDER_ATOMIC);
-        var value_b = Blockly.Madeup.valueToCode(block, 'b', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'dot ' + value_a + ', ' + value_b;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_size': {
     config:
@@ -1854,12 +1659,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function(block) {
-        var value_a = Blockly.Madeup.valueToCode(block, 'a', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'size ' + a;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_magnitude': {
     config:
@@ -1874,12 +1674,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function(block) {
-        var value_a = Blockly.Madeup.valueToCode(block, 'vector', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'magnitude ' + value_a;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_normalize': {
     config:
@@ -1894,12 +1689,7 @@ var block_definitions = {
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
       },
-    generator:
-      function(block) {
-        var value_a = Blockly.Madeup.valueToCode(block, 'vector', Blockly.Madeup.ORDER_ATOMIC);
-        var code = 'normalize ' + value_a;
-        return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
-      }
+    generator: generateCall
   },
   'madeup_subscript': {
     config:
@@ -1982,11 +1772,10 @@ for (var block_type in block_definitions) {
       Blockly.Blocks[block_type] = {
         init: function() {
           this.jsonInit(config);
-          this.args0 = config.args0;
-          this.message0 = config.message0;
-          // if (config.hasOwnProperty('defaultParameters')) {
-            // this.defaultParameters = config.defaultParameters;
-          // }
+          this.madeup = {
+            args0: config.args0,
+            message0: config.message0
+          };
         },
         customContextMenu: contextMenuPlusPlus,
         mutationToDom: mutationToDom,
@@ -2029,7 +1818,6 @@ Blockly.Blocks['madeup_array_literal'] = {
    * @this Blockly.Block
    */
   domToMutation: function(xmlElement) {
-    console.log("xmlElement:", xmlElement);
     this.itemCount_ = parseInt(xmlElement.getAttribute('items'), 10);
     this.updateShape_();
     domModeToMutation.call(this, xmlElement);
