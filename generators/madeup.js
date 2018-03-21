@@ -197,7 +197,7 @@ Blockly.Madeup['procedures_callnoreturn'] = function(block) {
 Blockly.Madeup['madeup_array_literal'] = function(block) {
   var elements = [];
   for (var i = 0; i < block.itemCount_; i++) {
-    elements[i] = Blockly.Madeup.valueToCode(block, 'ELEMENT' + i, Blockly.Madeup.ORDER_ATOMIC) || '';
+    elements[i] = Blockly.Madeup.valueToCode(block, 'element' + i, Blockly.Madeup.ORDER_ATOMIC) || '';
   }
   var code = '{' + elements.join(', ') + '}';
   return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
