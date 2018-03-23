@@ -63,7 +63,7 @@ function contextMenuPlusPlus(options) {
   };
   options.push(option);
 
-  if (block.madeup.hasOwnProperty('formals') && block.madeup.formals) {
+  if (block.hasOwnProperty('madeup') && block.madeup.hasOwnProperty('formals') && block.madeup.formals) {
     for (var i = 0; i < block.madeup.formals.length; ++i) {
       if (block.madeup.formals[i].hasOwnProperty('default')) {
         option = (function(arg) {
