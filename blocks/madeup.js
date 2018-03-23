@@ -63,52 +63,43 @@ function contextMenuPlusPlus(options) {
   };
   options.push(option);
 
-  if (block.madeup.hasOwnProperty('args0') && block.madeup.args0) {
-    for (var i = 0; i < block.madeup.args0.length; ++i) {
-      if (block.madeup.args0[i].hasOwnProperty('default')) {
+  if (block.madeup.hasOwnProperty('formals') && block.madeup.formals) {
+    for (var i = 0; i < block.madeup.formals.length; ++i) {
+      if (block.madeup.formals[i].hasOwnProperty('default')) {
         option = (function(arg) {
           return {
             enabled: true,
             text: 'Toggle parameter ' + arg.name,
             callback: function() {
               var oldMutation = block.mutationToDom();
-              block.enableParameter(arg.name, !block.isParameterEnabled(arg.name));
+              var lostXml = block.enableParameter(arg.name, !block.isParameterEnabled(arg.name));
               var newMutation = block.mutationToDom();
+
+              // Add lost block to mutation.
+              if (lostXml) {
+                var submutation = oldMutation.firstElementChild;
+                while (submutation) {
+                  if (submutation.nodeName.toLowerCase() == 'defaults') {
+                    var defaultParameter = submutation.firstElementChild;
+                    while (defaultParameter) {
+                      if (defaultParameter.getAttribute('id') == arg.name) {
+                        defaultParameter.appendChild(lostXml);
+                      }
+                      defaultParameter = defaultParameter.nextElementSibling;
+                    }
+                  }
+                  submutation = submutation.nextElementSibling;
+                }
+              }
+
               var event = new Blockly.Events.BlockChange(block, 'mutation', null, Blockly.Xml.domToText(oldMutation), Blockly.Xml.domToText(newMutation));
               Blockly.Events.fire(event);
             }
           };
-        })(block.madeup.args0[i], block.madeup.message0);
+        })(block.madeup.formals[i], block.madeup.message);
         options.push(option);
       }
     }
-  }
-
-  // Allow default parameters to be toggled.
-  if (block.hasOwnProperty('defaultParameters')) {
-    option = {
-      enabled: true,
-      text: 'Toggle default parameters',
-      callback: function() {
-        for (var i = 0; i < block.defaultParameters.length; ++i) {
-          var parameter = block.defaultParameters[i];
-          var name = parameter.id.toUpperCase();
-          if (block.getInput(name) == null) {
-            block.appendValueInput(name)
-                 .appendField(parameter.id)
-                 .setAlign(Blockly.ALIGN_RIGHT);
-            var peeker = new Peeker(parameter.expression);
-            var parameter_block = parse(peeker, block.workspace);
-            block.getInput(name).connection.connect(parameter_block.outputConnection);
-          } else {
-            var child = block.getInputTargetBlock(name);
-            block.removeInput(name);
-            child.dispose();
-          }
-        }
-      }
-    }
-    options.push(option);
   }
 }
 
@@ -116,10 +107,10 @@ function mutationModeToDom(block, container) {
   var isExpression = !!block.outputConnection;
   container.setAttribute('isexpression', isExpression);
 
-  if (block.hasOwnProperty('madeup') && block.madeup.hasOwnProperty('args0') && block.madeup.args0) {
+  if (block.hasOwnProperty('madeup') && block.madeup.hasOwnProperty('formals') && block.madeup.formals) {
     var ids = [];
-    for (var i = 0; i < block.madeup.args0.length; ++i) {
-      var arg = block.madeup.args0[i];
+    for (var i = 0; i < block.madeup.formals.length; ++i) {
+      var arg = block.madeup.formals[i];
       if (arg.hasOwnProperty('default')) {
         ids.push(arg.name);
       }
@@ -148,11 +139,20 @@ function isParameterOptional(arg) {
   return arg.hasOwnProperty('default');
 }
 
+function hasOptionalParameters(args) {
+  for (var i = 0; i < args.length; ++i) {
+    if (isParameterOptional(args[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Blockly.Block.prototype.isCallWithNames = function() {
-  if (this.madeup.hasOwnProperty('args0') && this.madeup.args0 && this.madeup.args0.length > 1) {
-    var isPredecessorOn = this.isParameterEnabled(this.madeup.args0[0].name);
-    for (var i = 1; i < this.madeup.args0.length; ++i) {
-      var isOn = this.isParameterEnabled(this.madeup.args0[i].name);
+  if (this.madeup.hasOwnProperty('formals') && this.madeup.formals && this.madeup.formals.length > 1) {
+    var isPredecessorOn = this.isParameterEnabled(this.madeup.formals[0].name);
+    for (var i = 1; i < this.madeup.formals.length; ++i) {
+      var isOn = this.isParameterEnabled(this.madeup.formals[i].name);
       if (isOn && !isPredecessorOn) {
         return true;
       }
@@ -167,10 +167,27 @@ Blockly.Block.prototype.isParameterEnabled = function(id) {
 }
 
 Blockly.Block.prototype.enableParameter = function(formal, isEnabled) {
-  this.removeInput(formal, true);
+  var isAlreadyEnabled = this.isParameterEnabled(formal);
+  if (isEnabled === isAlreadyEnabled) {
+    return null;
+  }
+
+  var input = this.getInput(formal);
+  var lostXml = null;
+  
+  if (input) {
+    if (!isEnabled && input.connection.targetBlock()) {
+      Blockly.Events.disable();
+      var lostBlock = input.connection.targetBlock();
+      var lostXml = Blockly.Xml.blockToDom(lostBlock);
+      lostBlock.dispose();
+      Blockly.Events.enable();
+    }
+    this.removeInput(formal);
+  }
 
   var regex = new RegExp('^(?:.*%\\d+\\s+)*(.*)' + formal + '\\s+%(\\d+)');
-  var match = regex.exec(this.madeup.message0);
+  var match = regex.exec(this.madeup.message);
   var prefix = match[1];
   var iPosition = parseInt(match[2]);
   
@@ -183,6 +200,8 @@ Blockly.Block.prototype.enableParameter = function(formal, isEnabled) {
       this.appendDummyInput(formal).appendField(prefix.trim());
     }
   }
+
+  return lostXml;
 }
 
 function domModeToMutation(element) {
@@ -190,14 +209,24 @@ function domModeToMutation(element) {
   setStatementExpression(this, isExpression); 
 
   var submutation = element.firstElementChild;
+  var foundDefaults = false;
   while (submutation != null) {
     // nodeName is uppercase for some reason. XML nodes are supposed to
     // maintain their case, but HTML are canonically capitalized.
     if (submutation.nodeName.toLowerCase() == 'defaults') {
+      var foundDefaults = true;
       var defaultFormal = submutation.firstElementChild;
       while (defaultFormal) {
         var isEnabled = defaultFormal.getAttribute('enabled') === 'true';
-        this.enableParameter(defaultFormal.getAttribute('id'), isEnabled);
+        var id = defaultFormal.getAttribute('id');
+        this.enableParameter(id, isEnabled);
+
+        // Inspect child for block.
+        if (defaultFormal.firstElementChild) {
+          var actual = Blockly.Xml.domToBlock(defaultFormal.firstElementChild, this.workspace);
+          this.getInput(id).connection.connect(actual.outputConnection);
+        }
+
         defaultFormal = defaultFormal.nextElementSibling;
       }
     }
@@ -206,23 +235,23 @@ function domModeToMutation(element) {
 }
 
 function generateCall(block) {
-  var match = block.madeup.message0.match(/^\w+/);
+  var match = block.madeup.message.match(/^\w+/);
   var code = match[0];
   if (block.isCallWithNames()) {
-    for (var i = 0; i < block.madeup.args0.length; ++i) {
-      var arg = block.madeup.args0[i];
+    for (var i = 0; i < block.madeup.formals.length; ++i) {
+      var arg = block.madeup.formals[i];
       if (this.isParameterEnabled(arg.name)) {
         var value = Blockly.Madeup.valueToCode(block, arg.name, Blockly.Madeup.ORDER_FUNCTION_CALL);
         code += ' ' + arg.name + ':' + value + '';
       }
     }
-  } else {
+  } else if (block.madeup.hasOwnProperty('formals') && block.madeup.formals) {
     var actuals = [];
-    for (var i = 0; i < block.madeup.args0.length; ++i) {
-      var arg = block.madeup.args0[i];
+    for (var i = 0; i < block.madeup.formals.length; ++i) {
+      var arg = block.madeup.formals[i];
       if (this.isParameterEnabled(arg.name)) {
         var precedence;
-        if (i == 0 && block.madeup.args0.length == 1) {
+        if (i == 0 && block.madeup.formals.length == 1) {
           precedence = Blockly.Madeup.ORDER_FUNCTION_CALL_ONLY_PARAMETER;
         } else if (i == 0) {
           precedence = Blockly.Madeup.ORDER_FUNCTION_CALL_FIRST_PARAMETER;
@@ -242,7 +271,7 @@ function generateCall(block) {
   return generateInMode(block, code, Blockly.Madeup.ORDER_FUNCTION_CALL);
 }
 
-var block_definitions = {
+var blockDefinitions = {
   'madeup_tube': {
     config:
       {
@@ -256,7 +285,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "tube"
       },
     generator: generateCall
   },
@@ -268,7 +298,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "spheres"
       },
     generator: generateCall
   },
@@ -280,7 +311,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "forget"
       },
     generator: generateCall
   },
@@ -296,6 +328,7 @@ var block_definitions = {
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
         "helpUrl": "http://www.example.com/",
+        "sid": "polygon"
       },
     generator: generateCall
   },
@@ -307,7 +340,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "boxes"
       },
     generator: generateCall
   },
@@ -326,7 +360,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "extrude"
       },
     generator: generateCall
   },
@@ -345,7 +380,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "revolve"
       },
     generator: generateCall
   },
@@ -389,7 +425,8 @@ var block_definitions = {
         "output": ["Integer", "Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": ["min", "max"]
       },
     generator:
       function (block) {
@@ -412,7 +449,8 @@ var block_definitions = {
         "output": ["Integer"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "random"
       },
     generator: generateCall
   },
@@ -423,7 +461,8 @@ var block_definitions = {
         "output": ["Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "random01"
       },
     generator: generateCall
   },
@@ -439,7 +478,8 @@ var block_definitions = {
         "output": ["Real", "Integer"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "atan2"
       },
     generator: generateCall
   },
@@ -455,7 +495,8 @@ var block_definitions = {
         "output": ["Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "log"
       },
     generator: generateCall
   },
@@ -546,7 +587,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "rotate"
       },
     generator: generateCall
   },
@@ -564,7 +606,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "scale"
       },
     generator: generateCall
   },
@@ -582,7 +625,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "translate"
       },
     generator: generateCall
   },
@@ -614,10 +658,11 @@ var block_definitions = {
           { "type": "input_value", "name": "x", "check": ["Integer", "Real"] }
         ],
         "inputsInline": true,
-        "output": "Number",
+        "output": ["Integer", "Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "sign"
       },
     generator: generateCall
   },
@@ -629,7 +674,7 @@ var block_definitions = {
           { "type": "input_value", "name": "x", "check": ["Integer", "Real"] }
         ],
         "inputsInline": true,
-        "output": "Number",
+        "output": ["Integer", "Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
         "helpUrl": "http://www.example.com/"
@@ -659,7 +704,7 @@ var block_definitions = {
               [ "%", "%" ]
             ]
           },
-          { "type": "input_value", "name": "b", "check": ["Integer", "Real", "Array", "Mesh"] }
+          { "type": "input_value", "name": "b", "check": ["Integer", "Real", "Array", "Mesh", "String"] }
         ],
         "inputsInline": true,
         "output": ["Integer", "Real", "Path", "Mesh", "Array"],
@@ -700,7 +745,7 @@ var block_definitions = {
       {
         "message0": "%1 %2 %3",
         "args0": [
-          { "type": "input_value", "name": "a", "check": ["Integer", "Real"] },
+          { "type": "input_value", "name": "a", "check": ["Integer", "Real", "Array", "String"] },
           {
             "type": "field_dropdown",
             "name": "operator",
@@ -713,7 +758,7 @@ var block_definitions = {
               [ "!=", "!=" ]
             ]
           },
-          { "type": "input_value", "name": "b", "check": ["Integer", "Real"] }
+          { "type": "input_value", "name": "b", "check": ["Integer", "Real", "Array", "String"] }
         ],
         "inputsInline": true,
         "output": "Boolean",
@@ -746,7 +791,8 @@ var block_definitions = {
         "previousStatement": null,
         "nextStatement": null,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "print"
       },
     generator: generateCall
   },
@@ -760,7 +806,8 @@ var block_definitions = {
         "previousStatement": null,
         "nextStatement": null,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "debug"
       },
     generator: generateCall
   },
@@ -855,7 +902,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "center"
       },
     generator: generateCall
   },
@@ -873,7 +921,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "mirror"
       },
     generator: generateCall
   },
@@ -889,7 +938,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "look"
       },
     generator: generateCall
   },
@@ -906,7 +956,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "polarto"
       },
     generator: generateCall
   },
@@ -924,7 +975,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "moveto"
       },
     generator: generateCall
   },
@@ -957,7 +1009,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "move"
       },
     generator: generateCall
   },
@@ -982,7 +1035,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": ["yaw", "pitch", "roll"]
       },
     generator:
       function (block) {
@@ -1012,7 +1066,8 @@ var block_definitions = {
         "output": ["Integer", "Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": ["sin", "cos", "tan"]
       },
     generator:
       function (block) {
@@ -1042,7 +1097,8 @@ var block_definitions = {
         "output": ["Integer", "Real"],
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": ["asin", "acos", "atan"]
       },
     generator:
       function (block) {
@@ -1117,7 +1173,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "identity"
       },
     generator: generateCall
   },
@@ -1129,7 +1186,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "home"
       },
     generator: generateCall
   },
@@ -1141,7 +1199,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "reframe"
       },
     generator: generateCall
   },
@@ -1153,7 +1212,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "push"
       },
     generator: generateCall
   },
@@ -1165,7 +1225,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "pop"
       },
     generator: generateCall
   },
@@ -1178,7 +1239,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "reverse"
       },
     generator: generateCall
   },
@@ -1194,7 +1256,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "coalesce"
       },
     generator: generateCall
   },
@@ -1211,7 +1274,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "dilate"
       },
     generator: generateCall
   },
@@ -1227,7 +1291,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "loft"
       },
     generator: generateCall
   },
@@ -1244,7 +1309,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "dowel"
       },
     generator: generateCall
   },
@@ -1276,7 +1342,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "echo"
       },
     generator: generateCall
   },
@@ -1292,7 +1359,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "transform"
       },
     generator: generateCall
   },
@@ -1304,7 +1372,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "path"
       },
     generator: generateCall
   },
@@ -1316,7 +1385,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "add"
       },
     generator: generateCall
   },
@@ -1328,7 +1398,26 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "subtract"
+      },
+    generator: generateCall
+  },
+  'madeup_trimesh': {
+    config:
+      {
+        "message0": "trimesh vertices %1 faces %2",
+        "args0": [
+          { "type": "input_value", "align": "RIGHT", "name": "vertices", "check": "Array" },
+          { "type": "input_value", "align": "RIGHT", "name": "faces", "check": "Array" },
+        ],
+        "inputsInline": false,
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
+        "tooltip": "",
+        "helpUrl": "http://www.example.com/",
+        "sid": "trimesh"
       },
     generator: generateCall
   },
@@ -1345,7 +1434,8 @@ var block_definitions = {
         "nextStatement": null,
         "colour": Blockly.Blocks.madeup.STATEMENT_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "surface"
       },
     generator: generateCall
   },
@@ -1357,7 +1447,8 @@ var block_definitions = {
         "output": "Camera",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "view"
       },
     generator: generateCall
   },
@@ -1369,7 +1460,8 @@ var block_definitions = {
         "output": "Array",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "where"
       },
     generator: generateCall
   },
@@ -1566,7 +1658,7 @@ var block_definitions = {
         var iterator = Blockly.Madeup.valueToCode(block, 'iterator', Blockly.Madeup.ORDER_NONE);
         var value_by = Blockly.Madeup.valueToCode(block, 'by', Blockly.Madeup.ORDER_NONE);
         var statements_body = Blockly.Madeup.statementToCode(block, 'body');
-        var code = 'for ' + iterator + ' ' + value_start + '..' + value_stop + ' by ' + value_by + '\n' + statements_body + 'end';
+        var code = 'for ' + iterator + ' in ' + value_start + '..' + value_stop + ' by ' + value_by + '\n' + statements_body + 'end';
         return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
       }
   },
@@ -1626,7 +1718,8 @@ var block_definitions = {
         "output": "Array",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "cross"
       },
     generator: generateCall
   },
@@ -1642,7 +1735,8 @@ var block_definitions = {
         "output": "Array",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "dot"
       },
     generator: generateCall
   },
@@ -1657,7 +1751,8 @@ var block_definitions = {
         "output": "Integer",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "size"
       },
     generator: generateCall
   },
@@ -1672,7 +1767,8 @@ var block_definitions = {
         "output": "Real",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "magnitude"
       },
     generator: generateCall
   },
@@ -1687,7 +1783,8 @@ var block_definitions = {
         "output": "Array",
         "colour": Blockly.Blocks.madeup.EXPRESSION_HUE,
         "tooltip": "",
-        "helpUrl": "http://www.example.com/"
+        "helpUrl": "http://www.example.com/",
+        "sid": "normalize"
       },
     generator: generateCall
   },
@@ -1766,22 +1863,22 @@ var block_definitions = {
 
 // --------------------------------------------------------------------------- 
 
-for (var block_type in block_definitions) {
-  if (block_definitions.hasOwnProperty(block_type)) {
+for (var type in blockDefinitions) {
+  if (blockDefinitions.hasOwnProperty(type)) {
     (function (type, config) {
-      Blockly.Blocks[block_type] = {
+      Blockly.Blocks[type] = {
         init: function() {
           this.jsonInit(config);
           this.madeup = {
-            args0: config.args0,
-            message0: config.message0
+            formals: config.args0,
+            message: config.message0
           };
         },
         customContextMenu: contextMenuPlusPlus,
         mutationToDom: mutationToDom,
         domToMutation: domModeToMutation
       };
-    })(block_type, block_definitions[block_type].config);
+    })(type, blockDefinitions[type].config);
   }
 }
 
@@ -1986,6 +2083,8 @@ function customizeBlock(id, hue) {
         return container;
       };
     }
+
+    // TODO: remove non-enabled defaults here?
   }
 }
 

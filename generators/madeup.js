@@ -203,8 +203,8 @@ Blockly.Madeup['madeup_array_literal'] = function(block) {
   return generateInMode(block, code, Blockly.Madeup.ORDER_ATOMIC);
 };
 
-for (var block_type in block_definitions) {
-  if (block_definitions.hasOwnProperty(block_type)) {
-    Blockly.Madeup[block_type] = block_definitions[block_type].generator;
+for (var type in blockDefinitions) {
+  if (blockDefinitions.hasOwnProperty(type)) {
+    Blockly.Madeup[type] = blockDefinitions[type].generator;
   }
 }
