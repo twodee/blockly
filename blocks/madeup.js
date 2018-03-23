@@ -946,10 +946,11 @@ var blockDefinitions = {
   'madeup_polarto': {
     config:
       {
-        "message0": "polarto radius %1 angle %2",
+        "message0": "polarto radius %1 angle %2 origin %3",
         "args0": [
           { "type": "input_value", "align": "RIGHT", "name": "radius", "check": ["Real", "Integer"] },
           { "type": "input_value", "align": "RIGHT", "name": "angle", "check": ["Real", "Integer"] },
+          { "type": "input_value", "align": "RIGHT", "name": "origin", "check": "Array" },
         ],
         "inputsInline": false,
         "previousStatement": null,
