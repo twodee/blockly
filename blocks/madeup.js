@@ -186,18 +186,63 @@ Blockly.Block.prototype.enableParameter = function(formal, isEnabled) {
     this.removeInput(formal);
   }
 
-  var regex = new RegExp('^(?:.*%\\d+\\s+)*(.*)' + formal + '\\s+%(\\d+)');
-  var match = regex.exec(this.madeup.message);
-  var prefix = match[1];
-  var iPosition = parseInt(match[2]);
-  
+  // When we toggle parameters, we want to ensure that they store in their
+  // canonical order, as determined by their block config. Complicating the
+  // situation is the function's ID, which needs to appear on whichever input
+  // appears first. When an input is toggled, it seemed easiest to simply wipe
+  // the inputs entirely and restore them in the canonical order, inserting
+  // the function's ID before the first.
+
+  // Add the enabled input weakly just so it's counted as being enabled. It's
+  // about to get wiped again.
   if (isEnabled) {
-    this.appendValueInput(formal)
-        .appendField(prefix + formal)
-        .setAlign(Blockly.ALIGN_RIGHT);
+    this.appendValueInput(formal);
+  }
+
+  // When no inputs are present, we need a dummy to list the function's name.
+  this.removeInput('_idDummy', true);
+  
+  // Hang on to all the inputs' blocks, 'cuz we about to remove all the inputs.
+  var connections = {};
+  for (var i = 0; i < this.inputList.length; ++i) {
+    var input = this.inputList[i];
+    var id = input.name;
+    connections[id] = input.connection.targetBlock();
+  }
+
+  // Remove all the inputs.
+  while (this.inputList.length > 0) {
+    var input = this.inputList[this.inputList.length - 1];
+    this.removeInput(input.name);
+  }
+
+  // Add them back in proper order. The order is determined by how they are
+  // enumerated in the block's config.
+  var formals = this.madeup.formals.filter(function(parameter) {
+    return connections.hasOwnProperty(parameter.name);
+  });
+
+  var match = this.madeup.message.match(/^\w+/);
+  var prefix = match[0];
+
+  if (formals.length == 0) {
+    this.appendDummyInput('_idDummy').appendField(prefix);
   } else {
-    if (iPosition == 1) {
-      this.appendDummyInput(formal).appendField(prefix.trim());
+    for (var i = 0; i < formals.length; ++i) {
+      var label = formals[i].name;
+      if (i == 0) {
+        label = prefix + ' ' + label;
+      }
+      this.appendValueInput(formals[i].name)
+          .appendField(label)
+          .setAlign(Blockly.ALIGN_RIGHT);
+    }
+  }
+
+  // Restore the non-null connections.
+  for (id in connections) {
+    if (connections.hasOwnProperty(id) && connections[id]) {
+      this.getInput(id).connection.connect(connections[id].outputConnection);
     }
   }
 
@@ -950,7 +995,7 @@ var blockDefinitions = {
         "args0": [
           { "type": "input_value", "align": "RIGHT", "name": "radius", "check": ["Real", "Integer"] },
           { "type": "input_value", "align": "RIGHT", "name": "angle", "check": ["Real", "Integer"] },
-          { "type": "input_value", "align": "RIGHT", "name": "origin", "check": "Array" },
+          { "type": "input_value", "align": "RIGHT", "name": "origin", "check": "Array", "default": "(ARRAYLITERAL (INTEGER 0) (INTEGER 0) (INTEGER 0))" },
         ],
         "inputsInline": false,
         "previousStatement": null,
