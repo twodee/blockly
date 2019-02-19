@@ -30,20 +30,17 @@
 'use strict';
 
 goog.provide('Blockly.Blocks.colour');  // Deprecated
-goog.provide('Blockly.Constants.Colour');
+goog.provide('Blockly.Constants.Colour');  // deprecated, 2018 April 5
 
 goog.require('Blockly.Blocks');
 goog.require('Blockly');
 
 
 /**
- * Common HSV hue for all blocks in this category.
- * This should be the same as Blockly.Msg.COLOUR_HUE.
- * @readonly
+ * Unused constant for the common HSV hue for all blocks in this category.
+ * @deprecated Use Blockly.Msg['COLOUR_HUE']. (2018 April 5)
  */
 Blockly.Constants.Colour.HUE = 20;
-/** @deprecated Use Blockly.Constants.Colour.HUE */
-Blockly.Blocks.colour.HUE = Blockly.Constants.Colour.HUE;
 
 Blockly.defineBlocksWithJsonArray([  // BEGIN JSON EXTRACT
   // Block for colour picker.
@@ -58,8 +55,8 @@ Blockly.defineBlocksWithJsonArray([  // BEGIN JSON EXTRACT
       }
     ],
     "output": "Colour",
-    "colour": "%{BKY_COLOUR_HUE}",
     "helpUrl": "%{BKY_COLOUR_PICKER_HELPURL}",
+    "style": "colour_blocks",
     "tooltip": "%{BKY_COLOUR_PICKER_TOOLTIP}",
     "extensions": ["parent_tooltip_when_inline"]
   },
@@ -69,8 +66,8 @@ Blockly.defineBlocksWithJsonArray([  // BEGIN JSON EXTRACT
     "type": "colour_random",
     "message0": "%{BKY_COLOUR_RANDOM_TITLE}",
     "output": "Colour",
-    "colour": "%{BKY_COLOUR_HUE}",
     "helpUrl": "%{BKY_COLOUR_RANDOM_HELPURL}",
+    "style": "colour_blocks",
     "tooltip": "%{BKY_COLOUR_RANDOM_TOOLTIP}"
   },
 
@@ -99,8 +96,8 @@ Blockly.defineBlocksWithJsonArray([  // BEGIN JSON EXTRACT
       }
     ],
     "output": "Colour",
-    "colour": "%{BKY_COLOUR_HUE}",
     "helpUrl": "%{BKY_COLOUR_RGB_HELPURL}",
+    "style": "colour_blocks",
     "tooltip": "%{BKY_COLOUR_RGB_TOOLTIP}"
   },
 
@@ -130,8 +127,8 @@ Blockly.defineBlocksWithJsonArray([  // BEGIN JSON EXTRACT
       }
     ],
     "output": "Colour",
-    "colour": "%{BKY_COLOUR_HUE}",
     "helpUrl": "%{BKY_COLOUR_BLEND_HELPURL}",
+    "style": "colour_blocks",
     "tooltip": "%{BKY_COLOUR_BLEND_TOOLTIP}"
   }
 ]);  // END JSON EXTRACT (Do not delete this comment.)

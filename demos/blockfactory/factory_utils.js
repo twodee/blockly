@@ -32,10 +32,7 @@
 /**
  * Namespace for FactoryUtils.
  */
-goog.provide('FactoryUtils');
-
-goog.require('BlockDefinitionExtractor');
-
+var FactoryUtils = FactoryUtils || Object.create(null);
 
 /**
  * Get block definition code for the current block.
@@ -596,7 +593,8 @@ FactoryUtils.getFieldsJson_ = function(block) {
             src: block.getFieldValue('SRC'),
             width: Number(block.getFieldValue('WIDTH')),
             height: Number(block.getFieldValue('HEIGHT')),
-            alt: block.getFieldValue('ALT')
+            alt: block.getFieldValue('ALT'),
+            flipRtl: block.getFieldValue('FLIP_RTL') == 'TRUE'
           });
           break;
       }
@@ -768,7 +766,7 @@ FactoryUtils.getBlockTypeFromJsDefinition = function(blockDef) {
  */
 FactoryUtils.generateCategoryXml = function(blocks, categoryName) {
   // Create category DOM element.
-  var categoryElement = goog.dom.createDom('category');
+  var categoryElement = document.createElement('category');
   categoryElement.setAttribute('name', categoryName);
 
   // For each block, add block element to category.

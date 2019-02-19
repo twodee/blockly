@@ -27,7 +27,7 @@
 Blockly.Dart['unittest_main'] = function(block) {
   // Container for unit tests.
   var resultsVar = Blockly.Dart.variableDB_.getName('unittestResults',
-      Blockly.Variables.NAME_TYPE);
+      Blockly.Names.DEVELOPER_VARIABLE_TYPE);
   var functionName = Blockly.Dart.provideFunction_(
       'unittest_report',
       [ 'String ' + Blockly.Dart.FUNCTION_NAME_PLACEHOLDER_ + '() {',
@@ -59,22 +59,24 @@ Blockly.Dart['unittest_main'] = function(block) {
         '}']);
   // Setup global to hold test results.
   var code = resultsVar + ' = [];\n';
+  // Say which test suite this is.
+  code += 'print(\'\\n====================\\n\\n' +
+      'Running suite: ' +
+      block.getFieldValue('SUITE_NAME') +
+       '\');\n';
   // Run tests (unindented).
   code += Blockly.Dart.statementToCode(block, 'DO')
       .replace(/^  /, '').replace(/\n  /g, '\n');
-  var reportVar = Blockly.Dart.variableDB_.getDistinctName(
-      'report', Blockly.Variables.NAME_TYPE);
-  code += 'String ' + reportVar + ' = ' + functionName + '();\n';
+  // Print the report to the console (that's where errors will go anyway).
+  code += 'print(' + functionName + '());\n';
   // Destroy results.
   code += resultsVar + ' = null;\n';
-  // Print the report to the console (that's where errors will go anyway).
-  code += 'print(' + reportVar + ');\n';
   return code;
 };
 
 Blockly.Dart['unittest_main'].defineAssert_ = function() {
   var resultsVar = Blockly.Dart.variableDB_.getName('unittestResults',
-      Blockly.Variables.NAME_TYPE);
+      Blockly.Names.DEVELOPER_VARIABLE_TYPE);
   var functionName = Blockly.Dart.provideFunction_(
       'unittest_assertequals',
       [ 'void ' + Blockly.Dart.FUNCTION_NAME_PLACEHOLDER_ +
@@ -142,9 +144,8 @@ Blockly.Dart['unittest_assertvalue'] = function(block) {
 Blockly.Dart['unittest_fail'] = function(block) {
   // Always assert an error.
   var resultsVar = Blockly.Dart.variableDB_.getName('unittestResults',
-      Blockly.Variables.NAME_TYPE);
-  var message = Blockly.Dart.valueToCode(block, 'MESSAGE',
-      Blockly.Dart.ORDER_NONE) || '';
+      Blockly.Names.DEVELOPER_VARIABLE_TYPE);
+  var message = Blockly.Dart.quote_(block.getFieldValue('MESSAGE'));
   var functionName = Blockly.Dart.provideFunction_(
       'unittest_fail',
       [ 'void ' + Blockly.Dart.FUNCTION_NAME_PLACEHOLDER_ +

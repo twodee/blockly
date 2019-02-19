@@ -28,9 +28,9 @@ goog.provide('Blockly.FieldTextInput');
 
 goog.require('Blockly.Field');
 goog.require('Blockly.Msg');
-goog.require('goog.asserts');
-goog.require('goog.dom');
-goog.require('goog.dom.TagName');
+goog.require('Blockly.utils');
+
+goog.require('goog.math.Coordinate');
 goog.require('goog.userAgent');
 
 
@@ -51,6 +51,24 @@ Blockly.FieldTextInput = function(text, opt_validator) {
 goog.inherits(Blockly.FieldTextInput, Blockly.Field);
 
 /**
+ * Construct a FieldTextInput from a JSON arg object,
+ * dereferencing any string table references.
+ * @param {!Object} options A JSON object with options (text, class, and
+ *                          spellcheck).
+ * @returns {!Blockly.FieldTextInput} The new field instance.
+ * @package
+ * @nocollapse
+ */
+Blockly.FieldTextInput.fromJson = function(options) {
+  var text = Blockly.utils.replaceMessageReferences(options['text']);
+  var field = new Blockly.FieldTextInput(text, options['class']);
+  if (typeof options['spellcheck'] === 'boolean') {
+    field.setSpellcheck(options['spellcheck']);
+  }
+  return field;
+};
+
+/**
  * Point size of text.  Should match blocklyText's font-size in CSS.
  */
 Blockly.FieldTextInput.FONTSIZE = 11;
@@ -59,7 +77,7 @@ Blockly.FieldTextInput.FONTSIZE = 11;
  * The HTML input element for the user to type, or null if no FieldTextInput
  * editor is currently open.
  * @type {HTMLInputElement}
- * @private
+ * @protected
  */
 Blockly.FieldTextInput.htmlInput_ = null;
 
@@ -88,18 +106,17 @@ Blockly.FieldTextInput.prototype.dispose = function() {
  * @override
  */
 Blockly.FieldTextInput.prototype.setValue = function(newValue) {
-  if (newValue === null) {
-    return;  // No change if null.
-  }
-  if (this.sourceBlock_) {
-    var validated = this.callValidator(newValue);
-    // If the new value is invalid, validation returns null.
-    // In this case we still want to display the illegal result.
-    if (validated !== null) {
-      newValue = validated;
+  if (newValue !== null) { // No change if null.
+    if (this.sourceBlock_) {
+      var validated = this.callValidator(newValue);
+      // If the new value is invalid, validation returns null.
+      // In this case we still want to display the illegal result.
+      if (validated !== null) {
+        newValue = validated;
+      }
     }
+    Blockly.Field.prototype.setValue.call(this, newValue);
   }
-  Blockly.Field.prototype.setValue.call(this, newValue);
 };
 
 /**
@@ -135,7 +152,7 @@ Blockly.FieldTextInput.prototype.setSpellcheck = function(check) {
  * Show the inline free-text editor on top of the text.
  * @param {boolean=} opt_quietInput True if editor should be created without
  *     focus.  Defaults to false.
- * @private
+ * @protected
  */
 Blockly.FieldTextInput.prototype.showEditor_ = function(opt_quietInput) {
   this.workspace_ = this.sourceBlock_.workspace;
@@ -155,13 +172,13 @@ Blockly.FieldTextInput.prototype.showEditor_ = function(opt_quietInput) {
  */
 Blockly.FieldTextInput.prototype.showPromptEditor_ = function() {
   var fieldText = this;
-  Blockly.prompt(Blockly.Msg.CHANGE_VALUE_TITLE, this.text_,
-    function(newValue) {
-      if (fieldText.sourceBlock_) {
-        newValue = fieldText.callValidator(newValue);
-      }
-      fieldText.setValue(newValue);
-    });
+  Blockly.prompt(Blockly.Msg['CHANGE_VALUE_TITLE'], this.text_,
+      function(newValue) {
+        if (fieldText.sourceBlock_) {
+          newValue = fieldText.callValidator(newValue);
+        }
+        fieldText.setValue(newValue);
+      });
 };
 
 /**
@@ -174,8 +191,8 @@ Blockly.FieldTextInput.prototype.showInlineEditor_ = function(quietInput) {
   Blockly.WidgetDiv.show(this, this.sourceBlock_.RTL, this.widgetDispose_());
   var div = Blockly.WidgetDiv.DIV;
   // Create the input.
-  var htmlInput =
-      goog.dom.createDom(goog.dom.TagName.INPUT, 'blocklyHtmlInput');
+  var htmlInput = document.createElement('input');
+  htmlInput.className = 'blocklyHtmlInput';
   htmlInput.setAttribute('spellcheck', this.spellcheck_);
   var fontSize =
       (Blockly.FieldTextInput.FONTSIZE * this.workspace_.scale) + 'pt';
@@ -206,16 +223,16 @@ Blockly.FieldTextInput.prototype.showInlineEditor_ = function(quietInput) {
 Blockly.FieldTextInput.prototype.bindEvents_ = function(htmlInput) {
   // Bind to keydown -- trap Enter without IME and Esc to hide.
   htmlInput.onKeyDownWrapper_ =
-      Blockly.bindEventWithChecks_(htmlInput, 'keydown', this,
-      this.onHtmlInputKeyDown_);
+      Blockly.bindEventWithChecks_(
+          htmlInput, 'keydown', this, this.onHtmlInputKeyDown_);
   // Bind to keyup -- trap Enter; resize after every keystroke.
   htmlInput.onKeyUpWrapper_ =
-      Blockly.bindEventWithChecks_(htmlInput, 'keyup', this,
-      this.onHtmlInputChange_);
+      Blockly.bindEventWithChecks_(
+          htmlInput, 'keyup', this, this.onHtmlInputChange_);
   // Bind to keyPress -- repeatedly resize when holding down a key.
   htmlInput.onKeyPressWrapper_ =
-      Blockly.bindEventWithChecks_(htmlInput, 'keypress', this,
-      this.onHtmlInputChange_);
+      Blockly.bindEventWithChecks_(
+          htmlInput, 'keypress', this, this.onHtmlInputChange_);
   htmlInput.onWorkspaceChangeWrapper_ = this.resizeEditor_.bind(this);
   this.workspace_.addChangeListener(htmlInput.onWorkspaceChangeWrapper_);
 };
@@ -255,17 +272,22 @@ Blockly.FieldTextInput.prototype.onHtmlInputKeyDown_ = function(e) {
 
 /**
  * Handle a change to the editor.
- * @param {!Event} e Keyboard event.
+ * @param {!Event} _e Keyboard event.
  * @private
  */
-Blockly.FieldTextInput.prototype.onHtmlInputChange_ = function(
-    /* eslint-disable no-unused-vars */ e /* eslint-enable no-unused-vars */) {
+Blockly.FieldTextInput.prototype.onHtmlInputChange_ = function(_e) {
   var htmlInput = Blockly.FieldTextInput.htmlInput_;
   // Update source block.
   var text = htmlInput.value;
   if (text !== htmlInput.oldValue_) {
     htmlInput.oldValue_ = text;
+
+    // TODO(#2169): Once issue is fixed the setGroup functionality could be
+    //              moved up to the Field setValue method. This would create a
+    //              broader fix for all field types.
+    Blockly.Events.setGroup(true);
     this.setValue(text);
+    Blockly.Events.setGroup(false);
     this.validate_();
   } else if (goog.userAgent.WEBKIT) {
     // Cursor key.  Render the source block to show the caret moving.
@@ -279,11 +301,13 @@ Blockly.FieldTextInput.prototype.onHtmlInputChange_ = function(
 /**
  * Check to see if the contents of the editor validates.
  * Style the editor accordingly.
- * @private
+ * @protected
  */
 Blockly.FieldTextInput.prototype.validate_ = function() {
   var valid = true;
-  goog.asserts.assertObject(Blockly.FieldTextInput.htmlInput_);
+  if (!Blockly.FieldTextInput.htmlInput_) {
+    throw Error('htmlInput not defined');
+  }
   var htmlInput = Blockly.FieldTextInput.htmlInput_;
   if (this.sourceBlock_) {
     valid = this.callValidator(htmlInput.value);
@@ -297,7 +321,7 @@ Blockly.FieldTextInput.prototype.validate_ = function() {
 
 /**
  * Resize the editor and the underlying block to fit the text.
- * @private
+ * @protected
  */
 Blockly.FieldTextInput.prototype.resizeEditor_ = function() {
   var div = Blockly.WidgetDiv.DIV;
@@ -350,6 +374,11 @@ Blockly.FieldTextInput.prototype.widgetDispose_ = function() {
   };
 };
 
+/**
+ * Attempt to save the text field changes when the user input loses focus.
+ * If the value is not valid, revert to the default value.
+ * @private
+ */
 Blockly.FieldTextInput.prototype.maybeSaveEdit_ = function() {
   var htmlInput = Blockly.FieldTextInput.htmlInput_;
   // Save the edit (if it validates).
@@ -404,3 +433,5 @@ Blockly.FieldTextInput.nonnegativeIntegerValidator = function(text) {
   }
   return n;
 };
+
+Blockly.Field.register('field_input', Blockly.FieldTextInput);

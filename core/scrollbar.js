@@ -27,8 +27,10 @@
 goog.provide('Blockly.Scrollbar');
 goog.provide('Blockly.ScrollbarPair');
 
-goog.require('goog.dom');
-goog.require('goog.events');
+goog.require('Blockly.utils');
+
+goog.require('goog.events.BrowserFeature');
+goog.require('goog.math.Coordinate');
 
 
 /**
@@ -43,15 +45,19 @@ goog.require('goog.events');
  */
 Blockly.ScrollbarPair = function(workspace) {
   this.workspace_ = workspace;
-  this.hScroll = new Blockly.Scrollbar(workspace, true, true,
-    'blocklyMainWorkspaceScrollbar');
-  this.vScroll = new Blockly.Scrollbar(workspace, false, true,
-    'blocklyMainWorkspaceScrollbar');
-  this.corner_ = Blockly.utils.createSvgElement('rect',
-      {'height': Blockly.Scrollbar.scrollbarThickness,
-      'width': Blockly.Scrollbar.scrollbarThickness,
-      'class': 'blocklyScrollbarBackground'}, null);
-  Blockly.utils.insertAfter_(this.corner_, workspace.getBubbleCanvas());
+  this.hScroll = new Blockly.Scrollbar(
+      workspace, true, true, 'blocklyMainWorkspaceScrollbar');
+  this.vScroll = new Blockly.Scrollbar(
+      workspace, false, true, 'blocklyMainWorkspaceScrollbar');
+  this.corner_ = Blockly.utils.createSvgElement(
+      'rect',
+      {
+        'height': Blockly.Scrollbar.scrollbarThickness,
+        'width': Blockly.Scrollbar.scrollbarThickness,
+        'class': 'blocklyScrollbarBackground'
+      },
+      null);
+  Blockly.utils.insertAfter(this.corner_, workspace.getBubbleCanvas());
 };
 
 /**
@@ -66,7 +72,7 @@ Blockly.ScrollbarPair.prototype.oldHostMetrics_ = null;
  * Unlink from all DOM elements to prevent memory leaks.
  */
 Blockly.ScrollbarPair.prototype.dispose = function() {
-  goog.dom.removeNode(this.corner_);
+  Blockly.utils.removeNode(this.corner_);
   this.corner_ = null;
   this.workspace_ = null;
   this.oldHostMetrics_ = null;
@@ -210,24 +216,20 @@ Blockly.Scrollbar = function(workspace, horizontal, opt_pair, opt_class) {
    */
   this.position_ = new goog.math.Coordinate(0, 0);
 
+  // Store the thickness in a temp variable for readability.
+  var scrollbarThickness = Blockly.Scrollbar.scrollbarThickness;
   if (horizontal) {
-    this.svgBackground_.setAttribute('height',
-        Blockly.Scrollbar.scrollbarThickness);
-    this.outerSvg_.setAttribute('height',
-          Blockly.Scrollbar.scrollbarThickness);
-    this.svgHandle_.setAttribute('height',
-        Blockly.Scrollbar.scrollbarThickness - 5);
+    this.svgBackground_.setAttribute('height', scrollbarThickness);
+    this.outerSvg_.setAttribute('height', scrollbarThickness);
+    this.svgHandle_.setAttribute('height', scrollbarThickness - 5);
     this.svgHandle_.setAttribute('y', 2.5);
 
     this.lengthAttribute_ = 'width';
     this.positionAttribute_ = 'x';
   } else {
-    this.svgBackground_.setAttribute('width',
-        Blockly.Scrollbar.scrollbarThickness);
-    this.outerSvg_.setAttribute('width',
-       Blockly.Scrollbar.scrollbarThickness);
-    this.svgHandle_.setAttribute('width',
-        Blockly.Scrollbar.scrollbarThickness - 5);
+    this.svgBackground_.setAttribute('width', scrollbarThickness);
+    this.outerSvg_.setAttribute('width', scrollbarThickness);
+    this.svgHandle_.setAttribute('width', scrollbarThickness - 5);
     this.svgHandle_.setAttribute('x', 2.5);
 
     this.lengthAttribute_ = 'height';
@@ -345,7 +347,7 @@ Blockly.Scrollbar.prototype.dispose = function() {
   Blockly.unbindEvent_(this.onMouseDownHandleWrapper_);
   this.onMouseDownHandleWrapper_ = null;
 
-  goog.dom.removeNode(this.outerSvg_);
+  Blockly.utils.removeNode(this.outerSvg_);
   this.outerSvg_ = null;
   this.svgGroup_ = null;
   this.svgBackground_ = null;
@@ -609,17 +611,21 @@ Blockly.Scrollbar.prototype.createDom_ = function(opt_class) {
   if (opt_class) {
     className += ' ' + opt_class;
   }
-  this.outerSvg_ = Blockly.utils.createSvgElement('svg', {'class': className},
-                                                  null);
+  this.outerSvg_ = Blockly.utils.createSvgElement(
+      'svg', {'class': className}, null);
   this.svgGroup_ = Blockly.utils.createSvgElement('g', {}, this.outerSvg_);
-  this.svgBackground_ = Blockly.utils.createSvgElement('rect',
-      {'class': 'blocklyScrollbarBackground'}, this.svgGroup_);
+  this.svgBackground_ = Blockly.utils.createSvgElement(
+      'rect', {'class': 'blocklyScrollbarBackground'}, this.svgGroup_);
   var radius = Math.floor((Blockly.Scrollbar.scrollbarThickness - 5) / 2);
-  this.svgHandle_ = Blockly.utils.createSvgElement('rect',
-      {'class': 'blocklyScrollbarHandle', 'rx': radius, 'ry': radius},
+  this.svgHandle_ = Blockly.utils.createSvgElement(
+      'rect',
+      {
+        'class': 'blocklyScrollbarHandle',
+        'rx': radius,
+        'ry': radius
+      },
       this.svgGroup_);
-  Blockly.utils.insertAfter_(this.outerSvg_,
-                                 this.workspace_.getParentSvg());
+  Blockly.utils.insertAfter(this.outerSvg_, this.workspace_.getParentSvg());
 };
 
 /**
@@ -656,7 +662,7 @@ Blockly.Scrollbar.prototype.setVisible = function(visible) {
   // Ideally this would also apply to scrollbar pairs, but that's a bigger
   // headache (due to interactions with the corner square).
   if (this.pair_) {
-    throw 'Unable to toggle visibility of paired scrollbars.';
+    throw Error('Unable to toggle visibility of paired scrollbars.');
   }
   this.isVisible_ = visible;
   if (visibilityChanged) {

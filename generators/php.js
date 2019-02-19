@@ -149,14 +149,24 @@ Blockly.PHP.init = function(workspace) {
     Blockly.PHP.variableDB_.reset();
   }
 
+  Blockly.PHP.variableDB_.setVariableMap(workspace.getVariableMap());
+
   var defvars = [];
-  var varName;
-  var variables = Blockly.Variables.allVariables(workspace);
-  for (var i = 0, variable; variable = variables[i]; i++) {
-    varName = variable.name;
-    defvars[i] = Blockly.PHP.variableDB_.getName(varName,
-        Blockly.Variables.NAME_TYPE) + ';';
+  // Add developer variables (not created or named by the user).
+  var devVarList = Blockly.Variables.allDeveloperVariables(workspace);
+  for (var i = 0; i < devVarList.length; i++) {
+    defvars.push(Blockly.PHP.variableDB_.getName(devVarList[i],
+        Blockly.Names.DEVELOPER_VARIABLE_TYPE) + ';');
   }
+
+  // Add user variables, but only ones that are being used.
+  var variables = Blockly.Variables.allUsedVarModels(workspace);
+  for (var i = 0, variable; variable = variables[i]; i++) {
+    defvars.push(Blockly.PHP.variableDB_.getName(variable.getId(),
+        Blockly.Variables.NAME_TYPE) + ';');
+  }
+
+  // Declare all of the variables.
   Blockly.PHP.definitions_['variables'] = defvars.join('\n');
 };
 
@@ -208,10 +218,11 @@ Blockly.PHP.quote_ = function(string) {
  * Calls any statements following this block.
  * @param {!Blockly.Block} block The current block.
  * @param {string} code The PHP code created for this block.
+ * @param {boolean=} opt_thisOnly True to generate code for only this statement.
  * @return {string} PHP code with comments and subsequent blocks added.
  * @private
  */
-Blockly.PHP.scrub_ = function(block, code) {
+Blockly.PHP.scrub_ = function(block, code, opt_thisOnly) {
   var commentCode = '';
   // Only collect comments for blocks that aren't inline.
   if (!block.outputConnection || !block.outputConnection.targetConnection) {
@@ -236,7 +247,7 @@ Blockly.PHP.scrub_ = function(block, code) {
     }
   }
   var nextBlock = block.nextConnection && block.nextConnection.targetBlock();
-  var nextCode = Blockly.PHP.blockToCode(nextBlock);
+  var nextCode = opt_thisOnly ? '' : Blockly.PHP.blockToCode(nextBlock);
   return commentCode + code + nextCode;
 };
 

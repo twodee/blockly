@@ -66,9 +66,14 @@ Blockly.Lua['math_single'] = function(block) {
         Blockly.Lua.ORDER_UNARY) || '0';
     return ['-' + arg, Blockly.Lua.ORDER_UNARY];
   }
-  if (operator == 'SIN' || operator == 'COS' || operator == 'TAN') {
+  if (operator == 'POW10') {
     arg = Blockly.Lua.valueToCode(block, 'NUM',
-        Blockly.Lua.ORDER_MULTIPLICATIVE) || '0';
+        Blockly.Lua.ORDER_EXPONENTIATION) || '0';
+    return ['10 ^ ' + arg, Blockly.Lua.ORDER_EXPONENTIATION];
+  }
+  if (operator == 'ROUND') {
+    arg = Blockly.Lua.valueToCode(block, 'NUM',
+        Blockly.Lua.ORDER_ADDITIVE) || '0';
   } else {
     arg = Blockly.Lua.valueToCode(block, 'NUM',
         Blockly.Lua.ORDER_NONE) || '0';
@@ -84,13 +89,10 @@ Blockly.Lua['math_single'] = function(block) {
       code = 'math.log(' + arg + ')';
       break;
     case 'LOG10':
-      code = 'math.log10(' + arg + ')';
+      code = 'math.log(' + arg + ', 10)';
       break;
     case 'EXP':
       code = 'math.exp(' + arg + ')';
-      break;
-    case 'POW10':
-      code = 'math.pow(10,' + arg + ')';
       break;
     case 'ROUND':
       // This rounds up.  Blockly does not specify rounding direction.
@@ -121,7 +123,7 @@ Blockly.Lua['math_single'] = function(block) {
       code = 'math.deg(math.atan(' + arg + '))';
       break;
     default:
-      throw 'Unknown math operator: ' + operator;
+      throw Error('Unknown math operator: ' + operator);
   }
   return [code, Blockly.Lua.ORDER_HIGH];
 };
@@ -381,7 +383,7 @@ Blockly.Lua['math_on_list'] = function(block) {
       break;
 
     default:
-      throw 'Unknown operator: ' + func;
+      throw Error('Unknown operator: ' + func);
   }
   return [functionName + '(' + list + ')', Blockly.Lua.ORDER_HIGH];
 };
@@ -422,4 +424,14 @@ Blockly.Lua['math_random_int'] = function(block) {
 Blockly.Lua['math_random_float'] = function(block) {
   // Random fraction between 0 and 1.
   return ['math.random()', Blockly.Lua.ORDER_HIGH];
+};
+
+Blockly.Lua['math_atan2'] = function(block) {
+  // Arctangent of point (X, Y) in degrees from -180 to 180.
+  var argument0 = Blockly.Lua.valueToCode(block, 'X',
+      Blockly.Lua.ORDER_NONE) || '0';
+  var argument1 = Blockly.Lua.valueToCode(block, 'Y',
+      Blockly.Lua.ORDER_NONE) || '0';
+  return ['math.deg(math.atan2(' + argument1 + ', ' + argument0 + '))',
+      Blockly.Lua.ORDER_HIGH];
 };

@@ -29,12 +29,13 @@ Blockly.Blocks['unittest_main'] = {
   init: function() {
     this.setColour(65);
     this.appendDummyInput()
-        .appendField('run tests');
+        .appendField('run test suite')
+        .appendField(new Blockly.FieldTextInput(''), 'SUITE_NAME');
     this.appendStatementInput('DO');
     this.setTooltip('Executes the enclosed unit tests,\n' +
                     'then prints a summary.');
   },
-  getVars: function() {
+  getDeveloperVars: function() {
     return ['unittestResults'];
   }
 };
@@ -54,7 +55,7 @@ Blockly.Blocks['unittest_assertequals'] = {
         .appendField('expected');
     this.setTooltip('Tests that "actual == expected".');
   },
-  getVars: function() {
+  getDeveloperVars: function() {
     return ['unittestResults'];
   }
 };
@@ -74,7 +75,7 @@ Blockly.Blocks['unittest_assertvalue'] = {
         [['true', 'TRUE'], ['false', 'FALSE'], ['null', 'NULL']]), 'EXPECTED');
     this.setTooltip('Tests that the value is true, false, or null.');
   },
-  getVars: function() {
+  getDeveloperVars: function() {
     return ['unittestResults'];
   }
 };
@@ -90,7 +91,7 @@ Blockly.Blocks['unittest_fail'] = {
         .appendField('fail');
     this.setTooltip('Records an error.');
   },
-  getVars: function() {
+  getDeveloperVars: function() {
     return ['unittestResults'];
   }
 };
